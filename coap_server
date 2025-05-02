@@ -1,0 +1,29 @@
+import asyncio
+import logging
+from aiocoap import *
+from aiocoap import resource
+
+# Setting up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("coap_server")
+
+# Resource to handle sensor data
+class SensorResource(resource.Resource):
+    async def render_post(self, request):
+        payload = request.payload.decode('utf-8')
+        logger.info(f"Received: {payload}")
+        return Message(payload=b"Data received")
+
+async def main():
+    # Create CoAP server
+    root = resource.Site()
+    root.add_resource(['sensor', 'data'], SensorResource())
+    try:
+        await Context.create_server_context(root, bind=('0.0.0.0', 5683))
+        logger.info("CoAP server started on coap://0.0.0.0:5683")
+        await asyncio.get_event_loop().run_forever()
+    except Exception as e:
+        logger.error(f"Error: {e}")
+
+if __name__ == "__main__":
+    asyncio.run(main())

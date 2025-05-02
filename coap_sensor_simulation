@@ -1,0 +1,30 @@
+import asyncio
+import random
+import logging
+from aiocoap import *
+
+# Setting up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("coap_sensor")
+
+async def simulate_sensor_data():
+    protocol = await Context.create_client_context()
+    while True:
+        try:
+            temperature = random.uniform(20.0, 25.0)
+            humidity = random.uniform(30.0, 50.0)
+            payload = f'{{"temperature": {temperature}, "humidity": {humidity}}}'.encode('utf-8')
+            request = Message(code=POST, payload=payload)
+            request.set_request_uri('coap://localhost/sensor/data')
+            response = await protocol.request(request).response
+            logger.info(f"Sent: {payload.decode('utf-8')}, Response: {response.code}")
+            await asyncio.sleep(1)
+        except Exception as e:
+            logger.error(f"Error: {e}")
+            await asyncio.sleep(1)
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(simulate_sensor_data())
+    except KeyboardInterrupt:
+        logger.info("Stopping CoAP simulation")
