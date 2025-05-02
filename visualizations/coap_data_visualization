@@ -1,0 +1,43 @@
+ Setting up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("coap_visualization")
+
+# Data storage
+data = []
+
+async def main():
+    protocol = await Context.create_client_context()
+    plt.ion()
+    plt.figure(figsize=(10, 6))
+    while True:
+        try:
+            request = Message(code=GET)
+            request.set_request_uri('coap://localhost/sensor/data')
+            response = await protocol.request(request).response
+            payload = response.payload.decode('utf-8')
+            data.append((datetime.now(), payload))
+            if len(data) > 100:
+                data.pop(0)
+            df = pd.DataFrame(data, columns=["timestamp", "sensor_data"])
+            df["temperature"] = df["sensor_data"].apply(lambda x: json.loads(x)["temperature"])
+            df["humidity"] = df["sensor_data"].apply(lambda x: json.loads(x)["humidity"])
+            plt.clf()
+            plt.plot(df["timestamp"], df["temperature"], label="Temperature (°C)")
+            plt.plot(df["timestamp"], df["humidity"], label="Humidity (%)")
+            plt.title("CoAP Sensor Data")
+            plt.xlabel("Time")
+            plt.ylabel("Value")
+            plt.legend()
+            plt.grid(True)
+            plt.draw()
+            plt.savefig('visualizations/coap_visualization.png')
+            plt.pause(0.1)
+        except Exception as e:
+            logger.error(f"Error: {e}")
+        await asyncio.sleep(1)
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logger.info("Stopping CoAP visualization")
