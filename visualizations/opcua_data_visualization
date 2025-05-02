@@ -1,1 +1,49 @@
 
+# Setting up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("opcua_visualization")
+
+# Data storage
+data = []
+
+async def main():
+    url = "opc.tcp://localhost:4840/freeopcua/server"
+    try:
+        async with Client(url=url) as client:
+            plt.ion()
+            plt.figure(figsize=(10, 6))
+            while True:
+                try:
+                    temp_node = client.get_node("ns=2;s=MyObject.Temperature")
+                    hum_node = client.get_node("ns=2;s=MyObject.Humidity")
+                    temperature = await temp_node.get_value()
+                    humidity = await hum_node.get_value()
+                    payload = json.dumps({"temperature": temperature, "humidity": humidity})
+                    data.append((datetime.now(), payload))
+                    if len(data) > 100:
+                        data.pop(0)
+                    df = pd.DataFrame(data, columns=["timestamp", "sensor_data"])
+                    df["temperature"] = df["sensor_data"].apply(lambda x: json.loads(x)["temperature"])
+                    df["humidity"] = df["sensor_data"].apply(lambda x: json.loads(x)["humidity"])
+                    plt.clf()
+                    plt.plot(df["timestamp"], df["temperature"], label="Temperature (°C)")
+                    plt.plot(df["timestamp"], df["humidity"], label="Humidity (%)")
+                    plt.title("OPC UA Sensor Data")
+                    plt.xlabel("Time")
+                    plt.ylabel("Value")
+                    plt.legend()
+                    plt.grid(True)
+                    plt.draw()
+                    plt.savefig('visualizations/opcua_visualization.png')
+                    plt.pause(0.1)
+                except Exception as e:
+                    logger.error(f"Error: {e}")
+                await asyncio.sleep(1)
+    except Exception as e:
+        logger.error(f"Connection error: {e}")
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logger.info("Stopping OPC UA visualization")
