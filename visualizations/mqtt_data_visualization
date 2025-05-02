@@ -1,0 +1,58 @@
+ Setting up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("mqtt_visualization")
+
+# Data storage
+data = []
+
+# MQTT callbacks
+def on_connect(client, userdata, flags, rc):
+    if rc == 0:
+        logger.info("Connected to MQTT broker")
+        client.subscribe("sensor/data")
+    else:
+        logger.error(f"Connection failed with code {rc}")
+
+def on_message(client, userdata, message):
+    try:
+        payload = message.payload.decode("utf-8")
+        data.append((datetime.now(), payload))
+        if len(data) > 100:
+            data.pop(0)
+        df = pd.DataFrame(data, columns=["timestamp", "sensor_data"])
+        df["temperature"] = df["sensor_data"].apply(lambda x: json.loads(x)["temperature"])
+        df["humidity"] = df["sensor_data"].apply(lambda x: json.loads(x)["humidity"])
+        plt.clf()
+        plt.plot(df["timestamp"], df["temperature"], label="Temperature (°C)")
+        plt.plot(df["timestamp"], df["humidity"], label="Humidity (%)")
+        plt.title("MQTT Sensor Data")
+        plt.xlabel("Time")
+        plt.ylabel("Value")
+        plt.legend()
+        plt.grid(True)
+        plt.draw()
+        plt.savefig('visualizations/mqtt_visualization.png')
+        plt.pause(0.1)
+    except Exception as e:
+        logger.error(f"Error processing message: {e}")
+
+# Initialize plot
+plt.ion()
+plt.figure(figsize=(10, 6))
+
+# Initialize MQTT client
+client = mqtt.Client()
+client.on_connect = on_connect
+client.on_message = on_message
+
+try:
+    client.connect("localhost", 1883)
+    client.loop_start()
+    plt.show()
+except Exception as e:
+    logger.error(f"Error: {e}")
+except KeyboardInterrupt:
+    logger.info("Stopping MQTT visualization")
+finally:
+    client.loop_stop()
+    client.disconnect()
